@@ -1,7 +1,5 @@
 # SimplePower
 
-author = "Gary Chow" <garyfpga@gmail.com>
-
 ## Say goodbye to /fast with SimplePower
 SimplePower is designed to get your work done a lot faster even without /fast.
 
