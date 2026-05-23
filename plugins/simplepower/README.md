@@ -34,7 +34,7 @@ SimplePower 是 Jesse Vincent / Prime Radiant 的 [Superpowers](https://github.c
 | 阶段 | SuperPower | SimplePower |
 |---|---:|---:|
 | Spec / Plan | brainstorming -> <br> approve spec -> <br> spec.md (commit) -> <br> plan.md (approve and commit) | brainstorming -> <br> approve spec -> <br> plan.md (approve and commit) <br> 懒得同时检查 spec.md 和 plan.md
-| Subagent Implementation <br><br> 这就是 SimplePower 快的原因 | Task1 impl agent -> <br> Task1 planning check -> <br> Task1 quality agent -> <br> Task2 impl agent -> <br> Task2 planning check -> <br> Task2 quality agent -> <br>  .... | 多个 subagent 并行处理多个文件 -> <br> 快速测试 runner subagent (spark) -> <br> 单个最终 reviewer + fixer
+| Subagent Implementation <br><br> 这就是 SimplePower 快的原因 | Task1 impl agent -> <br> Task1 planning check -> <br> Task1 quality agent -> <br> Task2 impl agent -> <br> Task2 planning check -> <br> Task2 quality agent -> <br>  .... | 多个 subagent 并行处理多个文件 -> <br> FAST-tier 快速验证 subagent -> <br> 单个 REVIEW-tier reviewer + fixer
 | Git Commits? | 每一步 | parallel subagent 之后一次性提交 + <br> review 之后最终提交
 
 ## 安装
@@ -50,15 +50,24 @@ codex plugin marketplace upgrade
 
 ## 模型分配
 
-Simple Power 使用两个可配置的模型层级：
+Simple Power 使用四个可配置的模型层级：
 
 ```bash
+SIMPLEPOWER_REVIEW_MODEL="gpt-5.5-xhigh"
 SIMPLEPOWER_BEST_MODEL="gpt-5.5-high"
-SIMPLEPOWER_FAST_MODEL="gpt-5.4-mini-high"
+SIMPLEPOWER_NORMAL_MODEL="gpt-5.4-mini-high"
+SIMPLEPOWER_FAST_MODEL="gpt-5.3-codex-spark-high"
 ```
+
+先按这个顺序解析模型设置：显式用户 override、项目根目录 `AGENTS.md` 里的 quoted assignment、进程环境变量、内建默认值。模型赋值只读取 `<repo>/AGENTS.md`；不会扫描嵌套 AGENTS 文件，也不会对整个仓库做 grep。
 
 把每个值按 `<model>-<reasoning_effort>` 解析：最后一个以 dash 分隔的片段作为 `reasoning_effort`，前面的字符串作为 `model`。
 例如，`gpt-5.4-mini-high` 会解析为 `model="gpt-5.4-mini"` 和 `reasoning_effort="high"`。
+
+REVIEW 用于 plan reviewer 和 final review+fix。
+BEST 用于广泛、跨文件、含糊、会改变行为、高风险、难测试的工作。
+NORMAL 用于原来会放进旧 FAST 层的常规低风险实现工作，尤其是局部修改。
+FAST 是 Spark 层，用于明显重复的工作、多文件机械性修改、大量静态文本扫改、简单 fixture/assertion 变更，以及快速验证。
 
 ## 实现流程
 
@@ -66,10 +75,14 @@ Simple Power skills 使用 `simplepower:*` namespace。当你想让 Codex 使用
 
 brainstorming skill 可以使用临时的 localhost visual companion 来处理 mockups、diagrams 和其他视觉问题。生成的 implementation plans 会保存到 `docs/simplepower/plans/`。
 
-在 `simplepower:writing-plans` 保存并 review 一个 plan 之后，它会询问使用哪种 implementation handoff。
-如果当前 Codex context usage 可用，推荐会基于它来决定：低于 `55%` 时继续在当前 session，`55%` 或更高时推荐 fresh session。
-如果无法测量 context，Simple Power 会 fallback 到保存的 plan size。
-handoff 仍然会显示两个命令；如果要 fresh context，先运行 `/clear`。
+默认情况下，`simplepower:brainstorming` 会在当前仓库内直接创建并切换到 `feature/<slug>` 分支，`simplepower:systematic-debugging` 会切到 `debug/<slug>` 分支；两者都不会默认创建 worktree。
+
+在调用 `simplepower:writing-plans` 之前，brainstorming 会先询问你。
+
+在它派出 REVIEW-tier plan reviewer 之前，它也会先询问你是否继续。
+在 plan reviewer 通过之后，Simple Power 会一次性询问你是否批准已审阅的 plan、模型分配，以及立刻在当前 session 里启动 `simplepower:subagent-driven-development`。
+你确认后，coordinator 会创建 accepted plan checkpoint commit，并立即调用 `simplepower:subagent-driven-development` 执行已批准的 plan。
+如果 REVIEW-tier reviewer 提出问题，coordinator 会修正 plan、重新跑相关自检，再把 revised plan 送回同一个 reviewer。REVIEW-tier reviewer 会一直保持打开，直到通过、发生不可恢复中断，或你明确要求停止。
 
 ## 如何使用 Simple Power
 
@@ -115,7 +128,7 @@ This table explains what SimplePower is trying to achieve (times are just estima
 | Pharse | SuperPower | SimplePower |
 |---|---:|---:|
 | Spec / Plan | brainstorming -> <br> approve spec -> <br> spec.md (commit) -> <br> plan.md (approve and commit) | brainstorming -> <br> approve spec -> <br> plan.md (approve and commit) <br> too lazy to check spec.md and plan.md
-| Subagent Implementation <br><br> this is why SimplePower is fast | Task1 impl agent -> <br> Task1 planning check -> <br> Task1 quality agent -> <br> Task2 impl agent -> <br> Task2 planning check -> <br> Task2 quality agent -> <br>  .... | Many subagents in parallel for multiple files -> <br> Quick tests runner subagent (spark) -> <br> Single final reviewer + fixer
+| Subagent Implementation <br><br> this is why SimplePower is fast | Task1 impl agent -> <br> Task1 planning check -> <br> Task1 quality agent -> <br> Task2 impl agent -> <br> Task2 planning check -> <br> Task2 quality agent -> <br>  .... | Many subagents in parallel for multiple files -> <br> FAST-tier quick verifier subagent -> <br> Single REVIEW-tier reviewer + fixer
 | Git Commits? | every steps | all at once after parallel subagent + <br> final after review
 
 ## Installation
@@ -132,17 +145,33 @@ marketplace updates.
 
 ## Model Allocation
 
-Simple Power uses two configurable model tiers:
+Simple Power uses four configurable model tiers:
 
 ```bash
+SIMPLEPOWER_REVIEW_MODEL="gpt-5.5-xhigh"
 SIMPLEPOWER_BEST_MODEL="gpt-5.5-high"
-SIMPLEPOWER_FAST_MODEL="gpt-5.4-mini-high"
+SIMPLEPOWER_NORMAL_MODEL="gpt-5.4-mini-high"
+SIMPLEPOWER_FAST_MODEL="gpt-5.3-codex-spark-high"
 ```
+
+Resolve model settings in this order: explicit user override, quoted
+assignment in project root `AGENTS.md`, process environment variable, built-in
+default. Model assignment lookup only reads `<repo>/AGENTS.md`; nested AGENTS
+files and repo-wide grep are not part of this feature.
 
 Parse each value as `<model>-<reasoning_effort>` by taking the final
 dash-delimited segment as `reasoning_effort` and the preceding string as
 `model`. For example, `gpt-5.4-mini-high` resolves to
 `model="gpt-5.4-mini"` and `reasoning_effort="high"`.
+
+REVIEW is for the plan reviewer and final review+fix agent.
+BEST is for broad, cross-cutting, ambiguous, behavior-shaping, high-risk, or
+hard-to-test work.
+NORMAL is for routine low-risk implementation work that used to fit the old
+FAST tier, especially localized edits.
+FAST is the Spark tier for obvious repetitive work, mechanical edits across
+many files, large static text sweeps, simple fixture/assertion churn, and quick
+verification.
 
 ## Implementation Flow
 
@@ -153,12 +182,24 @@ The brainstorming skill can use a temporary localhost visual companion for
 mockups, diagrams, and other visual questions. Generated implementation plans
 are saved under `docs/simplepower/plans/`.
 
-After `simplepower:writing-plans` saves and reviews a plan, it asks which
-implementation handoff to use. The recommendation comes from current Codex context usage
-when available: below `55%` continues in the current session, and
-`55%` or higher recommends a fresh session. If context measurement is
-unavailable, Simple Power falls back to saved plan size. The handoff still shows
-both commands; for fresh context, run `/clear` first.
+By default, `simplepower:brainstorming` starts in-place on a `feature/<slug>`
+branch and `simplepower:systematic-debugging` starts in-place on a
+`debug/<slug>` branch; neither path creates a worktree by default and both use
+`git checkout -b` for in-place setup.
+
+Brainstorming asks you before invoking simplepower:writing-plans.
+
+It asks for explicit approval before dispatching the REVIEW-tier plan reviewer.
+After that reviewer approves the plan, Simple Power asks for combined approval
+of the reviewed plan, the model allocation, and immediate execution in the
+current session with `simplepower:subagent-driven-development`.
+Once you approve, the coordinator creates the accepted plan checkpoint commit
+and immediately invokes `simplepower:subagent-driven-development` in the
+current session.
+If the REVIEW-tier reviewer reports issues, the coordinator fixes the plan,
+reruns focused self-review checks for the changed categories, and sends the
+revised plan back to the same reviewer. The REVIEW-tier reviewer stays open
+until approval, an unrecoverable interruption, or explicit user direction.
 
 ## How To Use Simple Power
 

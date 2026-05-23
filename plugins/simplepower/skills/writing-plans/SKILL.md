@@ -11,11 +11,12 @@ Write the authoritative implementation plan directly from the approved
 brainstorming design. The plan replaces standalone specs in the normal Simple
 Power workflow. It must include a compact `Design Summary`, exact file
 ownership, a required `Interface Contract`, implementation task allocation
-using `Contract inputs` and `Serialization required`, FAST/BEST model
-allocation, aggregate parallel dispatch guidance, review allocation, quick
-verification commands with timeouts, context-size handoff guidance, and three
-coordinator commit checkpoints. Plans may include optional inline visual aids
-when they reduce ambiguity.
+using `Contract inputs` and `Serialization required`, FAST/NORMAL/BEST/REVIEW
+model allocation, aggregate parallel dispatch guidance, review allocation, quick
+verification commands with timeouts, current-session auto-dispatch guidance,
+explicit reviewer-dispatch approval before the REVIEW-tier plan reviewer,
+combined approval, and three coordinator commit checkpoints. Plans may include
+optional inline visual aids when they reduce ambiguity.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
@@ -23,24 +24,45 @@ when they reduce ambiguity.
 
 ## Model Tiers
 
-Simple Power uses two configurable model tiers when planning implementation and
-review work:
+Simple Power uses four configurable model tiers when planning implementation,
+review, and verification work:
 
 ```bash
+SIMPLEPOWER_REVIEW_MODEL="gpt-5.5-xhigh"
 SIMPLEPOWER_BEST_MODEL="gpt-5.5-high"
-SIMPLEPOWER_FAST_MODEL="gpt-5.4-mini-high"
+SIMPLEPOWER_NORMAL_MODEL="gpt-5.4-mini-high"
+SIMPLEPOWER_FAST_MODEL="gpt-5.3-codex-spark-high"
 ```
 
-If either environment variable is unset, use the default shown above. Interpret
-the final dash-delimited segment as `reasoning_effort` and the preceding string
-as `model`. For example, `gpt-5.4-mini-high` resolves to
-`model="gpt-5.4-mini"` and `reasoning_effort="high"`.
+Resolve each tier setting in this order:
+1. Explicit user override in the current request or session.
+2. Quoted assignment in project root AGENTS.md if it exists, such as
+   `SIMPLEPOWER_REVIEW_MODEL="gpt-5.5-xhigh"`.
+3. Process environment variable.
+4. Built-in default shown above.
 
-Use FAST for narrow, low-risk, localized implementation work. Use BEST for
-broad, cross-cutting, ambiguous, behavior-shaping, high-risk, or hard-to-test
-implementation and review work. If the allocation is unclear, choose BEST. The
-plan reviewer and final review+fix agent use BEST. The quick verifier uses
+The project root AGENTS.md lookup reads only `<repo>/AGENTS.md`. Do not scan
+nested AGENTS.md files, and do not run repo-wide grep to discover model
+assignments.
+
+Interpret the final dash-delimited segment of the resolved value as
+`reasoning_effort` and the preceding string as `model`. For example,
+`gpt-5.5-xhigh` resolves to `model="gpt-5.5"` and
+`reasoning_effort="xhigh"`, while `gpt-5.3-codex-spark-high` resolves to
 `model="gpt-5.3-codex-spark"` and `reasoning_effort="high"`.
+
+Use REVIEW for the REVIEW-tier plan reviewer and REVIEW-tier review+fix agent.
+Use BEST for broad, cross-cutting, ambiguous, behavior-shaping, high-risk, or
+hard-to-test implementation work. Use NORMAL for routine low-risk
+implementation work, especially localized edits where `gpt-5.4-mini-high` is
+appropriate. Use FAST for obvious repetitive work, mechanical edits across many
+files, large static text sweeps, simple fixture/assertion churn, and quick
+verification. The quick verifier uses the FAST tier by default, resolving to
+`model="gpt-5.3-codex-spark"` and `reasoning_effort="high"` unless
+`SIMPLEPOWER_FAST_MODEL` is overridden by the resolution rules above. Escalate
+FAST to NORMAL or BEST if the work is less mechanical or obvious, and escalate
+NORMAL to BEST if the work is broad, ambiguous, behavior-shaping, or hard to
+verify.
 
 ## Approved Path Enforcement
 
@@ -65,7 +87,7 @@ user before changing approach.
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `simplepower:subagent-driven-development` for aggregate parallel implementation. Dispatch all non-conflicting `sp-impl` file-edit workers whose coordination needs are satisfied by the approved Interface Contract, run the quick verifier after all workers finish, commit the quick-verified implementation, then run one BEST-tier review+fix agent before final verification and final commit.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `simplepower:subagent-driven-development` for aggregate parallel implementation. Dispatch all non-conflicting `sp-impl` file-edit workers whose coordination needs are satisfied by the approved Interface Contract, run the quick verifier after all workers finish, commit the quick-verified implementation, then run one REVIEW-tier review+fix agent before final verification and final commit.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -75,9 +97,9 @@ user before changing approach.
 
 **Tech Stack:** [Key technologies/libraries]
 
-**Model Allocation:** FAST/BEST tiers are assigned per task below. FAST defaults to `SIMPLEPOWER_FAST_MODEL` (`gpt-5.4-mini-high` when unset). BEST defaults to `SIMPLEPOWER_BEST_MODEL` (`gpt-5.5-high` when unset). The plan reviewer and final review+fix agent use BEST. The quick verifier uses `model="gpt-5.3-codex-spark"` and `reasoning_effort="high"`.
+**Model Allocation:** FAST/NORMAL/BEST/REVIEW tiers are assigned below. Resolve each tier by explicit user override, quoted assignment in project root AGENTS.md, process environment variable, then built-in default. The project root AGENTS.md lookup reads only `<repo>/AGENTS.md`, not nested AGENTS.md files or repo-wide grep. FAST defaults to `SIMPLEPOWER_FAST_MODEL` (`gpt-5.3-codex-spark-high` when unset), NORMAL defaults to `SIMPLEPOWER_NORMAL_MODEL` (`gpt-5.4-mini-high` when unset), BEST defaults to `SIMPLEPOWER_BEST_MODEL` (`gpt-5.5-high` when unset), and REVIEW defaults to `SIMPLEPOWER_REVIEW_MODEL` (`gpt-5.5-xhigh` when unset). The plan reviewer is a REVIEW-tier plan reviewer, and the final review+fix agent is a REVIEW-tier review+fix agent. The quick verifier uses the FAST tier by default, resolving to `model="gpt-5.3-codex-spark"` and `reasoning_effort="high"` unless `SIMPLEPOWER_FAST_MODEL` is overridden.
 
-**Commit Policy:** The coordinator commits after the reviewed plan and allocation are accepted, after all file edits and quick verification complete before final review, and after final review/fix plus final verification. Workers, plan reviewers, quick verifiers, and review+fix agents must not commit. No per-task commits.
+**Commit Policy:** The coordinator commits after the reviewed plan, allocation, and immediate current-session execution receive combined approval, after all file edits and quick verification complete before final review, and after final review/fix plus final verification. Workers, plan reviewers, quick verifiers, and review+fix agents must not commit. No per-task commits.
 
 ---
 ```
@@ -164,7 +186,8 @@ Each task must include:
 - Write scope with exact paths
 - Parallel: Yes or No, with compatible task names when Yes
 - Risk: Low, Medium, or High, with a concrete reason
-- Model tier: FAST or BEST, with the resolved default model and effort
+- Model tier: FAST, NORMAL, or BEST, with the resolved model and effort. REVIEW
+  is reserved for the plan reviewer and final review+fix agent.
 - Worker role: `sp-impl`
 - Outputs and file-level responsibilities
 - Implementation steps with exact commands, code locations, and expected results
@@ -185,26 +208,39 @@ final review+fix agent.
 Required columns:
 - Stage
 - Role
-- Model tier
+- Model tier: FAST, NORMAL, BEST, or REVIEW
 - Resolved model
 - Reasoning effort
 - Reason
 
 Rules:
-- FAST defaults to `SIMPLEPOWER_FAST_MODEL` (`gpt-5.4-mini-high` when unset).
+- FAST defaults to `SIMPLEPOWER_FAST_MODEL` (`gpt-5.3-codex-spark-high` when unset).
+- NORMAL defaults to `SIMPLEPOWER_NORMAL_MODEL` (`gpt-5.4-mini-high` when unset).
 - BEST defaults to `SIMPLEPOWER_BEST_MODEL` (`gpt-5.5-high` when unset).
-- Implementation tasks may use FAST only when the work is narrow, localized,
-  low-risk, and easy to verify.
+- REVIEW defaults to `SIMPLEPOWER_REVIEW_MODEL` (`gpt-5.5-xhigh` when unset).
+- Resolve each tier by explicit user override, quoted assignment in project root
+  AGENTS.md if it exists, process environment variable, then built-in default.
+- The project root AGENTS.md lookup reads only `<repo>/AGENTS.md`, not nested
+  AGENTS.md files and not repo-wide grep.
+- Implementation tasks may use FAST only when the work is obvious, repetitive,
+  mechanical, or simple fixture/assertion churn.
+- Implementation tasks use NORMAL for routine low-risk implementation work,
+  especially localized edits where `gpt-5.4-mini-high` is appropriate.
 - Broad, ambiguous, cross-cutting, behavior-shaping, high-risk, or hard-to-test
   implementation tasks use BEST.
-- The plan reviewer uses BEST.
-- The final review+fix agent uses BEST.
-- The quick verifier uses `model="gpt-5.3-codex-spark"` and
-  `reasoning_effort="high"`.
+- Escalate FAST to NORMAL or BEST if the work is less mechanical or obvious.
+- Escalate NORMAL to BEST if the work is broad, ambiguous, behavior-shaping, or
+  hard to verify.
+- The plan reviewer uses REVIEW.
+- The final review+fix agent uses REVIEW.
+- The quick verifier uses the FAST tier by default, resolving to
+  `model="gpt-5.3-codex-spark"` and `reasoning_effort="high"` unless
+  `SIMPLEPOWER_FAST_MODEL` is overridden.
 
 ## Plan Review
 
-After writing the plan, self-review it before dispatching a reviewer.
+After writing the plan, self-review it before asking whether to dispatch a
+reviewer.
 
 Self-review checklist:
 - Design Summary: compactly captures the approved brainstorming design,
@@ -221,9 +257,12 @@ Self-review checklist:
   parallel dispatch instead of prerequisite-ordered staging.
 - Visual aids: if present, they are consistent with authoritative written
   sections; if absent, that is acceptable and not a review issue.
-- Model allocation: FAST/BEST choices match risk, and reviewer/verifier roles
-  use the required models.
-- Review allocation: the plan has one BEST-tier review+fix agent after quick
+- Model allocation: FAST/NORMAL/BEST/REVIEW choices match risk and mechanics,
+  all four configurable defaults are documented, model resolution precedence is
+  explicit, the project root AGENTS.md lookup is limited to `<repo>/AGENTS.md`,
+  the plan reviewer and final review+fix agent use REVIEW, and the quick
+  verifier uses the FAST tier by default.
+- Review allocation: the plan has one REVIEW-tier review+fix agent after quick
   verification.
 - Commit policy: exactly three coordinator checkpoints are present and no
   non-coordinator role commits.
@@ -231,19 +270,37 @@ Self-review checklist:
 - Approved path enforcement: the plan does not authorize unapproved route
   changes, skipped checks, or reduced deliverables.
 
-Then dispatch a BEST-tier plan reviewer using
-`skills/writing-plans/plan-document-reviewer-prompt.md`. Provide the saved plan
-path and the approved brainstorming design context. If the reviewer reports
-issues, fix the plan and rerun the focused self-review checks for the changed
-categories before asking the user.
+After self-review and before dispatching the REVIEW-tier plan reviewer, ask the
+user whether to start the plan reviewer. Provide the saved plan path and the
+self-review status. Do not dispatch the REVIEW-tier plan reviewer until the user
+explicitly approves reviewer dispatch.
 
-After the plan reviewer approves, ask the user to approve both the reviewed
-plan and model/task allocation. The accepted plan checkpoint commit happens
-only after that approval. Workers and reviewers must not create this commit.
+If the user declines or pauses instead of approving reviewer dispatch, stop and
+report the saved plan path, self-review status, and that reviewer dispatch is
+pending.
 
-After the user approves the reviewed plan and model/task allocation, the
-coordinator creates the accepted plan checkpoint commit before presenting the
-implementation handoff choice.
+After the user approves reviewer dispatch, dispatch a REVIEW-tier plan reviewer
+using `skills/writing-plans/plan-document-reviewer-prompt.md`. Provide the saved
+plan path and the approved brainstorming design context. Keep the initial
+reviewer subagent open while it reports recoverable issues. If the reviewer
+reports issues, fix the plan, rerun the focused self-review checks for the
+changed categories, and send the revised plan back to the same reviewer. Close
+the reviewer only after approval, an unrecoverable interruption, or explicit
+user direction.
+
+The REVIEW-tier plan reviewer must perform the assigned review directly in the
+current worker. Do not run Codex CLI. Do not spawn subagents. Do not invoke
+Simple Power skills. Do not restart execution. Do not reroute the workflow.
+
+After the plan reviewer approves, ask the user for combined approval of the
+reviewed plan, model/task allocation, and immediate current-session execution.
+The accepted plan checkpoint commit happens only after that combined approval.
+Workers and reviewers must not create this commit.
+
+After the user gives combined approval, the coordinator creates the accepted
+plan checkpoint commit and immediately invokes
+`simplepower:subagent-driven-development` to execute the accepted plan with the
+approved model allocation in the current session.
 
 ## Quick Verification
 
@@ -251,8 +308,9 @@ The quick verifier runs after all file-edit workers complete and before the
 coordinator creates the quick-verified implementation checkpoint. It checks that
 the implementation is coherent enough for final review.
 
-The quick verifier must use `model="gpt-5.3-codex-spark"` and
-`reasoning_effort="high"`.
+The quick verifier must use the FAST tier by default. With the default
+`SIMPLEPOWER_FAST_MODEL="gpt-5.3-codex-spark-high"`, this resolves to
+`model="gpt-5.3-codex-spark"` and `reasoning_effort="high"`.
 
 The plan must list exact quick verification commands with timeouts, usually:
 - `timeout 30s <lint command>`
@@ -270,7 +328,7 @@ of fixed by the quick verifier.
 ## Final Review And Fix
 
 After the coordinator checkpoint for the quick-verified implementation, dispatch
-one BEST-tier review+fix agent. That agent reviews and fixes the whole
+one REVIEW-tier review+fix agent. That agent reviews and fixes the whole
 implementation against the accepted plan, file ownership, approved path
 enforcement, aggregate parallel dispatch semantics, and verification
 requirements.
@@ -280,74 +338,57 @@ when fixing issues it finds. It must report changed files, commands run, results
 remaining risks, and any unresolved deviations that require user approval. It
 must not commit.
 
+The REVIEW-tier review+fix agent must perform the assigned review and fixes
+directly in the current worker. Do not run Codex CLI. Do not spawn subagents.
+Do not invoke Simple Power skills. Do not restart execution. Do not reroute the
+workflow.
+
 ## Commit Checkpoints
 
 Every plan must define exactly three future coordinator commit checkpoints:
 
-1. Accepted plan checkpoint: after the user approves the reviewed plan and
-   model/task allocation.
+1. Accepted plan checkpoint: after the user gives combined approval for the
+   reviewed plan, model/task allocation, and immediate current-session
+   execution, and before invoking `simplepower:subagent-driven-development`.
 2. Quick-verified implementation checkpoint: after all `sp-impl` file edits
    complete and the quick verifier passes.
-3. Final checkpoint: after the BEST-tier review+fix agent completes and final
+3. Final checkpoint: after the REVIEW-tier review+fix agent completes and final
    verification passes.
 
 Workers, plan reviewers, quick verifiers, and review+fix agents must not commit.
 Do not include worker-owned commits or per-task commits.
 
-## Context-Size Handoff
+## Current-Session Auto-Dispatch
 
-The saved plan is the handoff artifact. Do not write a project-local
-implementation handoff JSON artifact.
+The saved plan is the execution artifact. Do not write a project-local
+implementation JSON artifact.
 
-After the user approves the reviewed plan and model/task allocation and the
-coordinator creates the accepted plan checkpoint commit, read
-`skills/writing-plans/current-session-context.md`. Measure the current
-coordinator session context pct in the main agent; do not spawn a subagent for
-this measurement. Use `CODEX_THREAD_ID` and the Codex JSONL file through the
-helper.
+Normal Simple Power planning proceeds in the current session. Do not run routing
+heuristics or offer alternate execution routes.
 
-If the current session context measurement succeeds, use `>= 55%` for the
-fresh-context `/clear` recommendation and `< 55%` for continuing in the
-current session. If measurement fails, fall back to the saved plan size:
+After the plan is saved and self-reviewed, ask the user whether to start the
+REVIEW-tier plan reviewer. Do not dispatch that reviewer without explicit
+reviewer-dispatch approval. If the user declines or pauses, report the saved
+plan path, self-review status, and pending reviewer dispatch, then stop.
 
-```bash
-wc -c "$PLAN_PATH"
-```
+After the plan reviewer approves, ask the user for one combined approval that
+covers:
+- The reviewed plan
+- The model/task allocation
+- Immediate current-session execution
 
-For fallback only, use bytes from the saved plan file, not characters, lines,
-combined artifacts, or token estimates. The fallback comparison is strict
-greater-than `35840`: a byte count greater than 35840 bytes selects the
-fresh-context `/clear` recommendation, and `35840` or less selects the current
-session recommendation.
+If the user requests changes, update the plan, rerun the focused self-review
+checks for the changed categories, and send the revised plan back to the same
+reviewer when review approval must be refreshed. Do not create the accepted
+plan checkpoint until the user gives combined approval.
 
-Always show both implementation handoff commands, state whether the
-recommendation came from current context pct or the plan-size fallback, and
-ask the user which implementation handoff to use. Use Codex's user-question
-tool, such as `request_user_input`, when available; otherwise ask in plain
-text.
-
-If the recommendation is fresh context, put this option first and label it
-`Run after /clear (Recommended)`. If the recommendation is continuing in the
-current session, put this option first and label it
-`Continue in current session (Recommended)`.
-
-For current-session handoff, show this exact command text:
+After combined approval, the coordinator creates the accepted plan checkpoint
+commit, then immediately invokes `simplepower:subagent-driven-development` in
+the current session with this instruction:
 
 ```text
-Use `simplepower:subagent-driven-development` to execute `<PLAN_PATH>` with aggregate parallel implementation from the approved Interface Contract. Use the approved model allocation. Dispatch all non-conflicting `sp-impl` file-edit workers whose coordination needs are satisfied by their Contract inputs, run the quick `gpt-5.3-codex-spark` high-effort verifier with lint/build/tests and timeouts after all workers finish, commit the quick-verified implementation, then run one BEST-tier review+fix agent, final verification, and final commit.
+Execute `<PLAN_PATH>` with aggregate parallel implementation from the approved Interface Contract. Use the approved FAST/NORMAL/BEST/REVIEW model allocation. Dispatch all non-conflicting `sp-impl` file-edit workers whose coordination needs are satisfied by their Contract inputs, run the quick FAST-tier verifier with lint/build/tests and timeouts after all workers finish, commit the quick-verified implementation, then run one REVIEW-tier review+fix agent, final verification, and final commit.
 ```
-
-For fresh-context handoff, show this exact command text:
-
-```text
-/clear
-Use `simplepower:subagent-driven-development` to execute `<PLAN_PATH>` with aggregate parallel implementation from the approved Interface Contract. Use the approved model allocation. Dispatch all non-conflicting `sp-impl` file-edit workers whose coordination needs are satisfied by their Contract inputs, run the quick `gpt-5.3-codex-spark` high-effort verifier with lint/build/tests and timeouts after all workers finish, commit the quick-verified implementation, then run one BEST-tier review+fix agent, final verification, and final commit.
-```
-
-If the user chooses current-session execution, that choice is an authorized
-handoff to `simplepower:subagent-driven-development`. If the user chooses fresh
-context, stop after showing the fresh-context command and tell the user to run
-`/clear` manually before sending the command.
 
 ## Verification
 
@@ -361,8 +402,8 @@ usually:
 - `timeout 120s <test command>`
 
 The final verification section must also say that the coordinator performs the
-final checkpoint only after the BEST-tier review+fix agent has completed and the
-final commands pass.
+final checkpoint only after the REVIEW-tier review+fix agent has completed and
+the final commands pass.
 
 ## No Placeholders
 
@@ -375,7 +416,8 @@ failures:
 - Worker commit instructions, per-task commit instructions, or task-local
   `git commit` commands
 - Text that pre-authorizes scope reduction, skipped checks, placeholder
-  implementations, docs-only substitutes, or execution-route changes
+  implementations, docs-only substitutes, execution-route changes, alternate
+  context execution modes, or user selection among execution routes
 - Separate linked local HTML files for plan visuals unless a future approved
   design explicitly adds them
 
@@ -393,13 +435,30 @@ failures:
 - Tests may be parallel workers against approved Interface Contract APIs
 - Complete task instructions, with code snippets when code shape matters
 - Concrete commands with `timeout` and expected results
-- FAST/BEST allocation per task
-- BEST-tier plan reviewer
-- Quick `gpt-5.3-codex-spark` high-effort verifier
-- One BEST-tier review+fix agent
+- FAST/NORMAL/BEST/REVIEW allocation across implementation tasks, review, and
+  verification
+- Model resolution precedence is explicit: user override, quoted assignment in
+  project root AGENTS.md, process environment variable, built-in default
+- The project root AGENTS.md lookup reads only `<repo>/AGENTS.md`; never scan
+  nested AGENTS.md files or use repo-wide grep for model assignments
+- FAST for obvious repetitive work, mechanical edits, static text sweeps, simple
+  fixture/assertion churn, and quick verification
+- NORMAL for routine low-risk localized implementation work
+- BEST for broad, ambiguous, behavior-shaping, high-risk, or hard-to-test work
+- REVIEW-tier plan reviewer
+- Ask for explicit reviewer-dispatch approval before dispatching the REVIEW-tier
+  plan reviewer; if approval is declined or paused, report the saved plan path,
+  self-review status, and pending reviewer dispatch, then stop
+- Keep the initial plan reviewer open for issue loops; send revised plans back
+  to the same reviewer until approval, unrecoverable interruption, or explicit
+  user direction
+- Quick verifier uses the FAST tier by default, resolving to
+  `gpt-5.3-codex-spark-high` when unset
+- One REVIEW-tier review+fix agent
 - No worker commits or per-task commits
 - Exactly three coordinator checkpoints
-- Current coordinator session context pct decides the recommended implementation
-  handoff; `wc -c "$PLAN_PATH"` with strict greater-than `35840` is only the
-  fallback
-- Always show both implementation handoff commands and ask the user which implementation handoff to use
+- Ask for combined approval of the reviewed plan, model/task allocation, and
+  immediate current-session execution
+- After combined approval, commit the accepted plan checkpoint and immediately
+  invoke `simplepower:subagent-driven-development` with the approved model
+  allocation
