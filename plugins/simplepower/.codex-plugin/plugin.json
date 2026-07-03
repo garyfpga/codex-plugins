@@ -1,6 +1,6 @@
 {
   "name": "simplepower",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Simple Power is a Codex-only skills workflow for brainstorming, plan-first planning, parallel implementation, and read-only code discussion.",
   "homepage": "https://github.com/garyfpga/simplepower",
   "repository": "https://github.com/garyfpga/simplepower",
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "Simple Power",
     "shortDescription": "Codex-only brainstorming, planning, and parallel implementation workflows",
-    "longDescription": "Use Simple Power to guide Codex through brainstorming, authoritative implementation planning, plan-first parallel file edits, quick verification, one BEST-tier review+fix pass, final verification, and an explicit read-only code discussion mode.",
+    "longDescription": "Use Simple Power to guide Codex through brainstorming, authoritative implementation planning, plan-first parallel file edits with temporary local scratch refs as diff anchors for revised plans and review/fix passes, quick verification, one REVIEW-tier review+fix pass, final verification, and an explicit read-only code discussion mode.",
     "developerName": "Simple Power maintainers",
     "category": "Coding",
     "capabilities": [

@@ -12,20 +12,34 @@ Simple Power skills may mention generic skill tool names. When you encounter the
 | `Skill` tool (invoke a skill) | Skills load natively — just follow the instructions |
 | `Read`, `Write`, `Edit` (files) | Use your native file tools |
 | `Bash` (run commands) | Use your native shell tools |
-| sp-impl file-edit worker | `spawn_agent(agent_type="worker", model=<FAST_or_BEST_model>, reasoning_effort=<FAST_or_BEST_effort>, fork_context=false, message=...)` |
-| quick verifier | `spawn_agent(agent_type="worker", model="gpt-5.3-codex-spark", reasoning_effort="high", fork_context=false, message=...)` |
-| review+fix agent | `spawn_agent(agent_type="worker", model=<BEST_model>, reasoning_effort=<BEST_effort>, fork_context=false, message=...)` |
+| sp-impl file-edit worker | `spawn_agent(agent_type="worker", model=<FAST_or_NORMAL_or_BEST_model>, reasoning_effort=<FAST_or_NORMAL_or_BEST_effort>, fork_context=false, message=...)` |
+| quick verifier | `spawn_agent(agent_type="worker", model=<FAST_model>, reasoning_effort=<FAST_effort>, fork_context=false, message=...)` Default resolves to Spark high unless overridden. |
+| plan reviewer | `spawn_agent(agent_type="worker", model=<REVIEW_model>, reasoning_effort=<REVIEW_effort>, fork_context=false, message=...)` |
+| review+fix agent | `spawn_agent(agent_type="worker", model=<REVIEW_model>, reasoning_effort=<REVIEW_effort>, fork_context=false, message=...)` |
 | multiple independent file-edit tasks | Multiple `spawn_agent` calls, one per non-conflicting ownership unit, before `wait` |
 
 The role mappings are an explicit Simple Power override to generic same-model
-defaults from AGENTS.md or other ambient instructions. Resolve
-`SIMPLEPOWER_BEST_MODEL` and `SIMPLEPOWER_FAST_MODEL` before dispatch. If unset,
-use `SIMPLEPOWER_BEST_MODEL="gpt-5.5-high"` and
-`SIMPLEPOWER_FAST_MODEL="gpt-5.4-mini-high"`. The final dash-delimited segment
-is `reasoning_effort`; the preceding string is `model`.
+defaults from AGENTS.md or other ambient instructions. Resolve model settings
+in this order: explicit user override, quoted assignment in project root
+`<repo>/AGENTS.md`, process environment variable, built-in default. The model
+assignment lookup only reads `<repo>/AGENTS.md`; nested AGENTS files and
+repo-wide grep are not part of this feature.
 
-Use the plan's approved FAST/BEST allocation for `sp-impl` file-edit workers.
-Always dispatch the review+fix agent with BEST.
+Scratch refs under `refs/simplepower/scratch/<run-id>/` are coordinator-owned
+local refs used to provide concrete `git diff` commands to reviewers. They are
+not branches, accepted checkpoints, pushed refs, or subagent commits; workers
+and review agents must not create, update, delete, or commit them.
+
+Resolve `SIMPLEPOWER_REVIEW_MODEL`, `SIMPLEPOWER_BEST_MODEL`,
+`SIMPLEPOWER_NORMAL_MODEL`, and `SIMPLEPOWER_FAST_MODEL` before dispatch. If no
+source provides a value, use `SIMPLEPOWER_REVIEW_MODEL="gpt-5.5-xhigh"`,
+`SIMPLEPOWER_BEST_MODEL="gpt-5.5-high"`,
+`SIMPLEPOWER_NORMAL_MODEL="gpt-5.4-mini-high"`, and
+`SIMPLEPOWER_FAST_MODEL="gpt-5.3-codex-spark-high"`. The final
+dash-delimited segment is `reasoning_effort`; the preceding string is `model`.
+
+Use the plan's approved FAST/NORMAL/BEST allocation for `sp-impl` file-edit
+workers. Always dispatch the plan reviewer and review+fix agent with REVIEW.
 
 ## Subagent dispatch requires multi-agent support
 
