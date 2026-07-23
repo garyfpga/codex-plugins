@@ -13,6 +13,43 @@ description: Use only when the user explicitly requests simplepower:ro or asks t
 - Keep it active for the current task or discussion until the user explicitly disables it or requests implementation outside read-only mode.
 - When RO first needs a temp artifact, announce the active instance id and temp root.
 
+## Initial Analysis
+
+At activation, resolve and validate the shared configuration by following
+`skills/using-simplepower/references/simplepower-config.md`.
+
+- The coordinator performs read-only initial triage of the request and
+  available repository context itself. Never dispatch explorers automatically
+  at workflow activation.
+- With effective `use_subagent=false`, explorer dispatch is prohibited. The
+  coordinator performs all needed read-only initial inspection and analysis
+  itself.
+- With effective `use_subagent=true`, only after initial triage identifies a
+  large, cross-cutting, complex, or stalled investigation may the coordinator
+  dispatch one or more read-only explorers. Assign each selected explorer a
+  distinct useful angle. There is no policy numeric cap; runtime capacity and
+  non-overlapping useful angles limit the selected batch.
+- Every selected explorer uses the model and reasoning effort parsed from
+  `subagent_model`; model tiers remain separate from that parsed selection.
+  Pass exactly `fork_turns="none"` and a self-contained brief describing the
+  task, assigned distinct angle, repository scope, RO constraints, relevant
+  known evidence, required report, and verification. Explorers may inspect
+  files and run read-only commands only. They cannot edit or create any files,
+  including coordinator-owned artifacts: they cannot create `.codex-ro`
+  artifacts. Require each to report inspected files and commands, findings and
+  relevant architecture or conventions, risks or uncertainties, and explicit
+  confirmation that it made no edits.
+- If any explorer in a selected batch cannot dispatch because multi-agent
+  support is missing, the configured model is unavailable, or spawning fails,
+  stop and report the exact blocker as required by the shared contract; a
+  partial batch is not a substitute. Do not continue coordinator-only, use a
+  different model, or use an alternate route.
+
+The coordinator owns synthesis of all explorer reports and all later analysis.
+Only the coordinator may create or manage the temp root, manifest, and session
+artifacts described below. Optional exploration does not alter any RO write,
+cleanup, confirmation, or unexpected-modification rule.
+
 ## Write Rules
 
 - Never edit, overwrite, rename, delete, format, migrate, or code-generate over existing repo files.

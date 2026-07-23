@@ -7,612 +7,338 @@ description: Use only when the user explicitly requests simplepower:writing-plan
 
 ## Overview
 
-Write the authoritative implementation plan directly from the approved
-brainstorming design. The plan replaces standalone specs in the normal Simple
-Power workflow. It must include a compact `Design Summary`, exact file
-ownership, a required `Interface Contract`, implementation task allocation
-using `Contract inputs` and `Serialization required`, FAST/NORMAL/BEST/REVIEW
-model allocation, aggregate parallel dispatch guidance, review allocation, quick
-verification commands with timeouts, current-session auto-dispatch guidance,
-combined approval, and three coordinator commit checkpoints. Plans may include
-optional inline visual aids when they reduce ambiguity.
-Planning and execution also use coordinator-owned temporary scratch refs as
-local review diff anchors. Scratch refs are not accepted history commits and do
-not change the three-checkpoint commit policy.
+Write the authoritative implementation plan from the approved brainstorming
+design. Planning is adaptive: choose a compact `Main agent` route for one
+cohesive package, and use grouped workers only when delegation has clear
+material value.
+
+The main agent writes and self-reviews the plan. The normal workflow has no
+plan-review agent, plan-review prompt, plan-review scratch refs, final-review
+agent, or final-review scratch refs. The FAST quick verifier remains mandatory.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
 **Save plans to:** `docs/simplepower/plans/YYYY-MM-DD-<feature-name>.md`
 
-## Model Tiers
+Generated plans must reference canonical global rules instead of copying
+configuration, commit policy, dispatch isolation, and workflow boilerplate.
+Reference the relevant source by path or section, then include only the
+task-specific values needed to execute the approved work.
 
-Simple Power uses four configurable model tiers when planning implementation,
-review, and verification work:
+## Inputs From Brainstorming
 
-```bash
-SIMPLEPOWER_REVIEW_MODEL="gpt-5.5-xhigh"
-SIMPLEPOWER_BEST_MODEL="gpt-5.5-high"
-SIMPLEPOWER_NORMAL_MODEL="gpt-5.4-mini-high"
-SIMPLEPOWER_FAST_MODEL="gpt-5.3-codex-spark-high"
-```
+Require enough approved design context to select a route objectively before user
+approval:
 
-Resolve each tier setting in this order:
-1. Explicit user override in the current request or session.
-2. Quoted assignment in project root AGENTS.md if it exists, such as
-   `SIMPLEPOWER_REVIEW_MODEL="gpt-5.5-xhigh"`.
-3. Process environment variable.
-4. Built-in default shown above.
+- Goal, user-visible behavior, constraints, non-goals, and success criteria.
+- Cohesion assessment: why the work is one cohesive package or which parts are
+  genuinely independent.
+- Specialization assessment: whether any package materially benefits from a
+  delegated specialist.
+- Expected file areas, public interfaces, data shapes, commands, fixtures, and
+  external constraints.
+- Risks, expected verification, and any decisions that would require fresh user
+  approval if they change.
 
-The project root AGENTS.md lookup reads only `<repo>/AGENTS.md`. Do not scan
-nested AGENTS.md files, and do not run repo-wide grep to discover model
-assignments.
-
-Interpret the final dash-delimited segment of the resolved value as
-`reasoning_effort` and the preceding string as `model`. For example,
-`gpt-5.5-xhigh` resolves to `model="gpt-5.5"` and
-`reasoning_effort="xhigh"`, while `gpt-5.3-codex-spark-high` resolves to
-`model="gpt-5.3-codex-spark"` and `reasoning_effort="high"`.
-
-Use REVIEW for the REVIEW-tier plan reviewer and REVIEW-tier review+fix agent.
-Use BEST for broad, cross-cutting, ambiguous, behavior-shaping, high-risk, or
-hard-to-test implementation work. Use NORMAL for routine low-risk
-implementation work, especially localized edits where `gpt-5.4-mini-high` is
-appropriate. Use FAST for obvious repetitive work, mechanical edits across many
-files, large static text sweeps, simple fixture/assertion churn, and quick
-verification. The quick verifier uses the FAST tier by default, resolving to
-`model="gpt-5.3-codex-spark"` and `reasoning_effort="high"` unless
-`SIMPLEPOWER_FAST_MODEL` is overridden by the resolution rules above. Escalate
-FAST to NORMAL or BEST if the work is less mechanical or obvious, and escalate
-NORMAL to BEST if the work is broad, ambiguous, behavior-shaping, or hard to
-verify.
+If these inputs are missing or contradictory, ask for the missing decision
+before writing the plan.
 
 ## Approved Path Enforcement
 
 The approved brainstorming design and accepted implementation plan are
 authoritative. Do not authorize backup routes, scope reduction, docs-only
-substitutes, placeholder implementations, skipped verification, skipped review,
-or execution-route changes unless the user gives fresh explicit approval at the
-moment the deviation is needed.
-
-A stub substitute or execution-mode switch is an approved-path deviation and
-requires fresh explicit user approval before work continues.
+substitutes, placeholder implementations, skipped verification, or route changes
+unless the user gives fresh explicit approval at the moment the deviation is
+needed.
 
 Plans may describe blockers and decision points, but must not pre-approve
 alternate implementation work. If the approved path is blocked during execution,
-the agent must stop, report the exact mismatch, show current status, and ask the
-user before changing approach.
+the executing agent stops, reports the exact mismatch, shows current status, and
+asks the user before changing approach.
 
-## Scratch Ref Review Anchors
+A stub substitute or execution-mode switch requires fresh explicit approval.
 
-Temporary scratch refs are used by the coordinator to give reviewers concrete
-diff anchors without adding permanent commits. Workers, plan reviewers, quick
-verifiers, review+fix agents, and individual tasks must not create scratch refs
-or commits.
+## Configuration And Model Terms
 
-All scratch refs for one Simple Power run live under
-`refs/simplepower/scratch/<run-id>/`. The run id format is
-`YYYYMMDD-HHMMSS-<short-head>`, such as `20260602-143012-c4ad811`. The
-coordinator records the run id in working notes and final reporting when any
-scratch ref is created.
+Before assigning FAST/NORMAL/BEST work or the FAST quick verifier, resolve and
+validate Simple Power configuration by following
+`skills/using-simplepower/references/simplepower-config.md`.
 
-Scratch refs are local review artifacts. They are not branches, accepted
-checkpoint commits, pushed, merged, or rebased, and they do not count as one of
-the three coordinator checkpoint commits.
+Active normal planning uses only:
 
-Use these phase names:
-- Plan review refs:
-  `refs/simplepower/scratch/<run-id>/plan-review/before` and
-  `refs/simplepower/scratch/<run-id>/plan-review/after-<n>`
-- Quick verifier refs:
-  `refs/simplepower/scratch/<run-id>/quick-verifier/before` and
-  `refs/simplepower/scratch/<run-id>/quick-verifier/after`
-- Review+fix refs:
-  `refs/simplepower/scratch/<run-id>/review-fix/before` and
-  `refs/simplepower/scratch/<run-id>/review-fix/after`
+- FAST for obvious mechanical edits, simple fixture/assertion churn, and the
+  mandatory quick verifier.
+- NORMAL for routine, localized implementation.
+- BEST for broad, ambiguous, behavior-shaping, high-risk, or hard-to-test work.
 
-A phase may omit an `after` ref only when no file changes happened in that
-phase.
+`review_model`, `review_model2`, `final_review_model`, and
+`skip_final_review` remain recognized and validated compatibility settings, but
+they are deprecated no-ops in the normal brainstorming-to-implementation chain.
+Do not include REVIEW allocation, plan-review routing, dual-review routing,
+final-review-agent routing, or final-review-skip boilerplate in generated normal
+plans.
 
-Scratch refs must capture the current worktree state for the approved file list
-without changing the real index or branch history. Prefer a temporary index:
+## Route Selection Before Approval
 
-```bash
-SP_RUN_ID="${SP_RUN_ID:-$(date -u +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)}"
-SP_SCRATCH_PREFIX="refs/simplepower/scratch/$SP_RUN_ID"
-SP_REF="$SP_SCRATCH_PREFIX/<phase>/<label>"
-SP_TMP_INDEX="$(mktemp)"
-GIT_INDEX_FILE="$SP_TMP_INDEX" git read-tree HEAD
-GIT_INDEX_FILE="$SP_TMP_INDEX" git add -- <approved-files>
-SP_TREE="$(GIT_INDEX_FILE="$SP_TMP_INDEX" git write-tree)"
-SP_COMMIT="$(printf '%s\n' "simplepower scratch $SP_RUN_ID <phase>/<label>" | git commit-tree "$SP_TREE" -p HEAD)"
-git update-ref "$SP_REF" "$SP_COMMIT"
-rm -f "$SP_TMP_INDEX"
-```
+Choose the `Implementation Route` before asking the user to approve the plan.
+The route is part of the approval. Do not silently switch it later.
 
-If scratch-ref creation fails, stop the review loop before relying on the
-missing anchor.
+Select `Implementation Route: Main agent` when:
 
-Every revised-plan review prompt after a blocking issue must include either an
-exact scratch-ref diff command or an explicit diff summary based on the relevant
-scratch refs. Preferred command shape:
+- The write scope forms one cohesive implementation package.
+- Closely related code, tests, docs, fixtures, or configuration should stay
+  together to preserve context.
+- No specialized delegation materially improves speed, quality, or risk.
 
-```bash
-git diff refs/simplepower/scratch/<run-id>/<phase>/<before-label> refs/simplepower/scratch/<run-id>/<phase>/<after-label> -- <approved-files>
-```
+Select `Implementation Route: Grouped workers` only when:
 
-Quick-verifier tiny fixes and review+fix edits must be inspectable with the same
-command shape before the coordinator creates the next accepted checkpoint.
+- There are at least two independent, non-overlapping cohesive packages that can
+  proceed from a shared contract, or specialized work has material delegation
+  benefit.
+- Every worker package can receive an exact write scope that does not overlap
+  another ready worker package.
+- The coordination value outweighs the extra prompt, review, and lifecycle
+  overhead.
 
-After an accepted checkpoint succeeds, delete the scratch refs for that phase:
+Capacity only queues approved packages; it never justifies splitting tiny tasks.
+Keep closely related production code and tests in the same package unless their
+contracts and write scopes are genuinely independent. Changing the approved
+route, package boundaries, or strategy requires fresh user approval.
 
-```bash
-git for-each-ref --format='%(refname)' "refs/simplepower/scratch/<run-id>/<phase>" | while read -r ref; do git update-ref -d "$ref"; done
-```
+## Shared Compact Plan Core
 
-After the accepted plan checkpoint succeeds, delete the `plan-review` refs.
-After the quick-verified implementation checkpoint succeeds, delete the
-`quick-verifier` refs. After the final checkpoint succeeds, delete the
-`review-fix` refs. At final reporting, run a cleanup check for remaining refs
-under the run id. If the workflow stops because of user direction, a blocker, or
-a failed checkpoint commit, keep scratch refs as evidence and report this manual
-cleanup command instead of deleting them:
+Every generated plan, including grouped-worker plans, must contain this compact
+core with concrete content and no placeholders:
 
-```bash
-git for-each-ref --format='%(refname)' "refs/simplepower/scratch/<run-id>" | while read -r ref; do git update-ref -d "$ref"; done
-```
+1. `# [Feature Name] Implementation Plan`
+2. `Goal`: one sentence.
+3. `Design Summary`: approved design, cohesion/specialization reasoning,
+   constraints, decisions, risks, and success criteria.
+4. `Implementation Route`: exactly `Main agent` or `Grouped workers`, with the
+   objective route-selection reason.
+5. `Exact Files`: every file that may be created, modified, deleted, or
+   generated. Use exact paths.
+6. `Implementation Steps`: ordered, executable steps with enough detail for the
+   selected route.
+7. `Risks`: concrete risks and how the plan reduces them.
+8. `Quick Verification`: exact timed commands and expected results for the FAST
+   quick verifier.
+9. `Final Verification`: exact timed commands, expected results, and the main
+   agent's final diff review requirement.
+10. `Checkpoint Conditions`: exactly two coordinator checkpoints:
+    - Accepted plan checkpoint after combined user approval of the plan, route,
+      any grouped-worker allocation, and immediate current-session execution.
+    - Final reviewed/verified implementation checkpoint after implementation,
+      the FAST quick verifier, main-agent final review and in-scope fixes, and
+      final verification pass.
 
-## Plan Document Header
+Normal plans must not copy global configuration resolution, commit policy, or
+dispatch boilerplate. Reference canonical global rules and record only values
+that are specific to the plan, such as exact files, route, package contracts,
+selected FAST/NORMAL/BEST allocation, and verification commands.
 
-**Every plan MUST start with this header:**
+## Main Agent Route Requirements
 
-```markdown
-# [Feature Name] Implementation Plan
+For `Implementation Route: Main agent`, use the shared compact plan core only.
+Do not add worker packages or implementation-worker allocation.
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `simplepower:subagent-driven-development` for aggregate parallel implementation. Dispatch all non-conflicting `sp-impl` file-edit workers whose coordination needs are satisfied by the approved Interface Contract, run the quick verifier after all workers finish, commit the quick-verified implementation, then run one REVIEW-tier review+fix agent before final verification and final commit.
+The implementation steps must state that, after the accepted-plan checkpoint,
+the main agent directly implements the one cohesive package in the current
+session, then runs the mandatory FAST quick verifier, performs the main-agent
+final diff review and in-scope fixes, runs final verification, and reaches the
+final checkpoint condition.
 
-**Goal:** [One sentence describing what this builds]
+## Grouped Workers Route Extensions
 
-**Design Summary:** [Compact summary of the approved brainstorming design, constraints, success criteria, and key decisions]
+For `Implementation Route: Grouped workers`, add these sections in addition to
+the shared compact plan core.
 
-**Architecture:** [2-3 sentences about approach, including how the Interface Contract supports aggregate parallel dispatch]
+### Interface Contract
 
-**Tech Stack:** [Key technologies/libraries]
-
-**Model Allocation:** FAST/NORMAL/BEST/REVIEW tiers are assigned below. Resolve each tier by explicit user override, quoted assignment in project root AGENTS.md, process environment variable, then built-in default. The project root AGENTS.md lookup reads only `<repo>/AGENTS.md`, not nested AGENTS.md files or repo-wide grep. FAST defaults to `SIMPLEPOWER_FAST_MODEL` (`gpt-5.3-codex-spark-high` when unset), NORMAL defaults to `SIMPLEPOWER_NORMAL_MODEL` (`gpt-5.4-mini-high` when unset), BEST defaults to `SIMPLEPOWER_BEST_MODEL` (`gpt-5.5-high` when unset), and REVIEW defaults to `SIMPLEPOWER_REVIEW_MODEL` (`gpt-5.5-xhigh` when unset). The plan reviewer is a REVIEW-tier plan reviewer, and the final review+fix agent is a REVIEW-tier review+fix agent. The quick verifier uses the FAST tier by default, resolving to `model="gpt-5.3-codex-spark"` and `reasoning_effort="high"` unless `SIMPLEPOWER_FAST_MODEL` is overridden.
-
-**Commit Policy:** The coordinator commits after the reviewed plan, allocation, and immediate current-session execution receive combined approval, after all file edits and quick verification complete before final review, and after final review/fix plus final verification. Workers, plan reviewers, quick verifiers, and review+fix agents must not commit. No per-task commits. Coordinator-owned temporary scratch refs under `refs/simplepower/scratch/<run-id>/...` may be created only as local review diff anchors; they are not accepted history commits, not pushed, not merged, not rebased, and must be cleaned up after successful checkpoints or reported for manual cleanup on blockers or failed checkpoints.
-
----
-```
-
-The full plan body must include these required sections in order:
-
-## Interface Contract
-
-Define the shared contract that lets implementation and test workers proceed
-together without waiting for another worker's uncommitted edits.
-
-This section must list the public APIs, filenames, command contracts, fixtures,
-data shapes, behavior guarantees, and cross-task assumptions that workers may
-rely on during aggregate parallel dispatch. Use exact names and expected
+List only the shared facts worker packages may rely on before other packages
+finish: public APIs, filenames, command contracts, fixtures, data shapes,
+behavior guarantees, and cross-package assumptions. Use exact names and expected
 behavior, not broad intent.
 
-Rules:
-- Every task must reference the relevant entries through its `Contract inputs`.
-- `Contract inputs` replace routine prerequisite scheduling when the approved
-  Interface Contract is sufficient for coordination.
-- Tests may be planned as parallel workers against approved Interface Contract
-  entries even when implementation workers are creating those APIs.
-- If the Interface Contract is missing or ambiguous for a task, mark
-  `Serialization required: Yes` for that task with a concrete reason, or fix the
-  contract before dispatch.
-- The Interface Contract does not override file ownership. Parallel workers
-  still need non-overlapping write scopes.
+### File Ownership
 
-## File Ownership
+List every file that may be created, modified, deleted, or generated. Each file
+must be owned by exactly one package. No two parallel packages may edit the same
+file. Shared files must be serialized into one package or split so ownership is
+unambiguous.
 
-List every file that may be created or modified. This section locks the write
-boundaries before task dispatch.
+### Worker Packages
 
-Required columns:
-- File
-- Owner task
-- Change type: create, modify, delete, or generated
-- Responsibility
-- Parallel safety notes
+Define cohesive worker packages, not single-file chores. Each package must
+include:
 
-Rules:
-- Every implementation task must own an exact file list.
-- No two parallel tasks may edit the same file.
-- Shared files must be serialized to a single task or split so ownership is
-  unambiguous.
-- Do not leave implied files outside ownership. If a task step, command, code
-  snippet, or public declaration requires a file, include that file here and in
-  the task write scope.
+- Goal and material delegation reason.
+- Relevant Interface Contract entries and approved design context.
+- Exact read scope and exact write scope.
+- Implementation steps and expected outputs.
+- Exact timed verification commands.
+- Risk/model reason and FAST/NORMAL/BEST allocation.
+- Completion report requirements.
 
-Optional plan section: `## Visual Aids`
+Label the relevant shared facts as `Contract inputs`. Every package must state
+`Serialization required: No`, or `Serialization required: Yes` with the exact
+approved reason and release condition.
 
-Plans may include `## Visual Aids` after `## File Ownership` when inline visuals
-reduce implementation ambiguity. Omit this section when visual aids do not
-reduce ambiguity.
+Worker package instructions must include only relevant design, contract, scope,
+and verification context. Do not paste the complete plan or repeated global
+configuration, commit-policy, scratch-ref, or workflow boilerplate into worker
+prompts. Worker prompts remain self-contained for their package and must retain
+the canonical dispatch isolation requirement that every dispatch uses exactly
+`fork_turns="none"`.
 
-Visual aids must be inline Markdown-compatible content in the plan file:
-Markdown-compatible HTML blocks, SVG blocks, Markdown tables, or plain-text
-diagrams. Do not generate separate linked local HTML files for plan visuals
-under this design.
+### Serialization Decisions
 
-Suitable visual aid cases include workflow flowcharts, architecture or data-flow
-maps, task ownership matrices, and state or error-path diagrams.
+State which packages can run together and which must wait, with concrete
+reasons. Use serialization only for overlapping write scopes, missing or
+ambiguous contracts, generated artifacts required before editing, or intentional
+runtime/migration ordering. Do not serialize merely because one package tests an
+approved interface another package is implementing.
 
-Written plan sections remain authoritative. Visual aids must support, not
-replace or contradict, the Interface Contract, File Ownership, implementation
-tasks, task allocation, model allocation, verification, commit policy, or
-approved path enforcement.
+### FAST/NORMAL/BEST Allocation
 
-## Implementation Tasks
+List grouped-worker packages and the quick verifier with resolved FAST, NORMAL,
+or BEST model/effort values. Do not include REVIEW allocation. Use BEST for
+broad or behavior-shaping packages, NORMAL for routine implementation packages,
+and FAST only for mechanical package work or quick verification.
 
-Create small tasks that can be dispatched as non-conflicting `sp-impl` workers
-in aggregate parallel where the approved Interface Contract supplies the shared
-coordination. Each task must be complete enough for a worker with no surrounding
-context to make the intended change without inventing scope.
+The quick verifier uses the FAST tier by default; its built-in value is
+`gpt-5.3-codex-spark-xhigh`. Resolve all active model values through the
+canonical configuration reference instead of copying environment-overlay
+boilerplate into generated plans.
 
-Each task must include:
-- Task name and goal
-- Contract inputs: exact Interface Contract entries, approved design details,
-  or explicit external facts the worker may rely on
-- Serialization required: `No` by default; `Yes` only with a concrete reason
-  such as overlapping write scopes, missing or ambiguous contract, generated
-  artifact required before editing, or intentional sequential migration/runtime
-  ordering
-- Write scope with exact paths
-- Parallel: Yes or No, with compatible task names when Yes
-- Risk: Low, Medium, or High, with a concrete reason
-- Model tier: FAST, NORMAL, or BEST, with the resolved model and effort. REVIEW
-  is reserved for the plan reviewer and final review+fix agent.
-- Worker role: `sp-impl`
-- Outputs and file-level responsibilities
-- Implementation steps with exact commands, code locations, and expected results
-- Verification commands that the worker should run, each with `timeout`
-- Completion report requirements: changed files, commands run, results, and
-  unresolved risks
+## Visual Aids
 
-Task instructions must not include worker commits or per-task commits. Do not
-serialize tasks by prerequisite order when the Interface Contract is sufficient.
-Implementation tasks and test tasks with non-overlapping write scopes may be
-parallel even when tests target APIs that implementation workers are creating.
+Plans may include this optional section only when inline visuals reduce ambiguity.
+Suitable cases include workflow flowcharts, architecture or data-flow maps,
+task ownership matrices, and state or error-path diagrams.
+Written plan sections remain authoritative; visual aids cannot replace or
+contradict route, ownership, package, verification, or checkpoint decisions.
 
-## Model Allocation
+## Plan Self-Review And Approval
 
-List every implementation task, the plan reviewer, the quick verifier, and the
-final review+fix agent.
+After writing the plan, the main agent self-reviews it before asking the user
+for approval. Check:
 
-Required columns:
-- Stage
-- Role
-- Model tier: FAST, NORMAL, BEST, or REVIEW
-- Resolved model
-- Reasoning effort
-- Reason
+- The route follows the objective `Main agent` or `Grouped workers` criteria.
+- The plan has the shared compact core, exact files, implementation steps,
+  risks, timed quick verification, timed final verification, and exactly two
+  coordinator checkpoint conditions.
+- Grouped-worker plans, when used, include Interface Contract, File Ownership,
+  cohesive Worker Packages, serialization decisions, and FAST/NORMAL/BEST
+  allocation.
+- Related code and tests stay in one package unless the plan explains genuine
+  independence.
+- Worker prompts will receive only relevant package context and exact
+  `fork_turns="none"` dispatch isolation.
+- The FAST quick verifier is mandatory and limited to tiny typo-level fixes.
+- Non-trivial quick-verifier failures return to the main agent.
+- The main agent performs final diff review and in-scope fixes; no final-review
+  agent is required.
+- Deprecated compatibility settings are recognized/validated but are no-ops in
+  the normal chain.
+- The plan does not contain placeholders, skipped checks, backup routes, or
+  unapproved scope changes.
 
-Rules:
-- FAST defaults to `SIMPLEPOWER_FAST_MODEL` (`gpt-5.3-codex-spark-high` when unset).
-- NORMAL defaults to `SIMPLEPOWER_NORMAL_MODEL` (`gpt-5.4-mini-high` when unset).
-- BEST defaults to `SIMPLEPOWER_BEST_MODEL` (`gpt-5.5-high` when unset).
-- REVIEW defaults to `SIMPLEPOWER_REVIEW_MODEL` (`gpt-5.5-xhigh` when unset).
-- Resolve each tier by explicit user override, quoted assignment in project root
-  AGENTS.md if it exists, process environment variable, then built-in default.
-- The project root AGENTS.md lookup reads only `<repo>/AGENTS.md`, not nested
-  AGENTS.md files and not repo-wide grep.
-- Implementation tasks may use FAST only when the work is obvious, repetitive,
-  mechanical, or simple fixture/assertion churn.
-- Implementation tasks use NORMAL for routine low-risk implementation work,
-  especially localized edits where `gpt-5.4-mini-high` is appropriate.
-- Broad, ambiguous, cross-cutting, behavior-shaping, high-risk, or hard-to-test
-  implementation tasks use BEST.
-- Escalate FAST to NORMAL or BEST if the work is less mechanical or obvious.
-- Escalate NORMAL to BEST if the work is broad, ambiguous, behavior-shaping, or
-  hard to verify.
-- The plan reviewer uses REVIEW.
-- The final review+fix agent uses REVIEW.
-- The quick verifier uses the FAST tier by default, resolving to
-  `model="gpt-5.3-codex-spark"` and `reasoning_effort="high"` unless
-  `SIMPLEPOWER_FAST_MODEL` is overridden.
+Then ask for one combined approval covering the plan, selected route, any
+grouped-worker allocation, and immediate current-session execution. If the user
+requests changes, revise the plan and rerun the focused self-review checks. Do
+not create the accepted-plan checkpoint until the user gives combined approval.
 
-## Plan Review
+After combined approval, the coordinator creates the accepted-plan checkpoint
+and immediately invokes `simplepower:subagent-driven-development` for
+current-session auto-dispatch with the approved plan path and route.
 
-After writing the plan, self-review it before dispatching a reviewer.
+## Quick Verifier And Final Review
 
-Self-review checklist:
-- Design Summary: compactly captures the approved brainstorming design,
-  constraints, success criteria, and key decisions.
-- Interface Contract: lists concrete APIs, filenames, commands, fixtures, data
-  shapes, behavior guarantees, and cross-task assumptions before File Ownership.
-- File ownership: every implied file is assigned to exactly one task, and
-  parallel tasks do not collide.
-- Task allocation: every requirement maps to an implementation task, every task
-  has `Contract inputs`, and any `Serialization required: Yes` has a concrete
-  reason.
-- Aggregate parallel readiness: non-overlapping workers whose coordination
-  needs are satisfied by the Interface Contract are planned for aggregate
-  parallel dispatch instead of prerequisite-ordered staging.
-- Visual aids: if present, they are consistent with authoritative written
-  sections; if absent, that is acceptable and not a review issue.
-- Model allocation: FAST/NORMAL/BEST/REVIEW choices match risk and mechanics,
-  all four configurable defaults are documented, model resolution precedence is
-  explicit, the project root AGENTS.md lookup is limited to `<repo>/AGENTS.md`,
-  the plan reviewer and final review+fix agent use REVIEW, and the quick
-  verifier uses the FAST tier by default.
-- Review allocation: the plan has one REVIEW-tier review+fix agent after quick
-  verification.
-- Commit policy: exactly three coordinator checkpoints are present and no
-  non-coordinator role commits; scratch refs are local review anchors, not
-  accepted checkpoint commits.
-- Scratch refs: the plan includes coordinator-only scratch-ref namespace, run
-  id, creation, revised-plan diff handoff, cleanup, blocker preservation, and
-  final cleanup check guidance.
-- Verification: quick and final commands are concrete and use `timeout`.
-- Approved path enforcement: the plan does not authorize unapproved route
-  changes, skipped checks, or reduced deliverables.
+The quick verifier runs after all implementation edits, whether those edits were
+made directly by the main agent or by grouped workers. It uses FAST by default
+and receives only the approved changed-file list, relevant behavior contract,
+implementation summary, and exact timed commands.
 
-Before first review, the coordinator creates
-`refs/simplepower/scratch/<run-id>/plan-review/before` for the saved plan file
-using the temporary-index pattern in `Scratch Ref Review Anchors`.
+The quick verifier may make only tiny typo-level fixes. Any behavior change,
+structural edit, public-interface change, test rewrite, unclear failure, or
+scope concern is a non-trivial failure and must return to the main agent for
+diagnosis and in-scope repair. After repairs, rerun the relevant quick
+verification.
 
-Then dispatch a REVIEW-tier plan reviewer using
-`skills/writing-plans/plan-document-reviewer-prompt.md`. Provide the saved plan
-path, the approved brainstorming design context, the scratch run id when one was
-created, and the `plan-review/before` ref. Keep the initial reviewer subagent
-open while it reports recoverable issues. If the reviewer reports issues, fix
-the plan, rerun the focused self-review checks for the changed categories,
-create `refs/simplepower/scratch/<run-id>/plan-review/after-<n>`, and send the
-revised plan back to the same reviewer with the concrete diff command:
+The main agent performs the final implementation review: inspect the complete
+diff, compare it to the accepted plan and approved path, make in-scope fixes,
+and run final verification. The normal workflow has no final-review agent and
+no final-review scratch phase.
 
-```bash
-git diff refs/simplepower/scratch/<run-id>/plan-review/before refs/simplepower/scratch/<run-id>/plan-review/after-<n> -- <plan-file>
-```
+Only quick-verifier scratch refs remain in the target workflow, and they are
+coordinator-owned local diff anchors managed by the execution skill. The target
+workflow has exactly two coordinator checkpoints: accepted plan and final
+reviewed/verified implementation. The final reviewed/verified implementation
+checkpoint has no intermediate quick-verified
+implementation checkpoint.
 
-If the same reviewer still finds issues, the next revision creates
-`plan-review/after-<n+1>` and compares the last `after-<n>` ref to the new
-`after-<n+1>` ref:
+The canonical scratch namespace and mechanics live in
+`skills/subagent-driven-development/scratch-ref-workflow.md`, under
+`refs/simplepower/scratch/<run-id>/`; generated plans
+must reference that file instead of copying ref creation, diff, and cleanup
+commands. Scratch refs are not accepted history commits.
+Workers and quick verifiers must not commit, inspect, or manage refs.
+No worker commits or per-task commits. No per-task commits includes task-local
+`git commit` commands.
 
-```bash
-git diff refs/simplepower/scratch/<run-id>/plan-review/after-<n> refs/simplepower/scratch/<run-id>/plan-review/after-<n+1> -- <plan-file>
-```
-
-Close the reviewer only after approval, an unrecoverable interruption, or
-explicit user direction. If a needed scratch ref is missing, stop the review loop
-before relying on that missing diff anchor.
-
-The REVIEW-tier plan reviewer must perform the assigned review directly in the
-current worker. Do not run Codex CLI. Do not spawn subagents. Do not invoke
-Simple Power skills. Do not restart execution. Do not reroute the workflow.
-
-After the plan reviewer approves, ask the user for combined approval of the
-reviewed plan, model/task allocation, and immediate current-session execution.
-The accepted plan checkpoint commit happens only after that combined approval.
-Workers and reviewers must not create this commit.
-
-After the user gives combined approval, the coordinator creates the accepted
-plan checkpoint commit and immediately invokes
-`simplepower:subagent-driven-development` to execute the accepted plan with the
-approved model allocation in the current session. After the accepted plan
-checkpoint succeeds, delete that run's `plan-review` scratch refs. If the
-checkpoint fails or the workflow stops before the checkpoint, preserve the refs
-and report the manual cleanup command.
-
-## Quick Verification
-
-The quick verifier runs after all file-edit workers complete and before the
-coordinator creates the quick-verified implementation checkpoint. It checks that
-the implementation is coherent enough for final review.
-
-Before dispatching the quick verifier, the coordinator creates
-`refs/simplepower/scratch/<run-id>/quick-verifier/before` for the approved
-implementation file list. If the quick verifier makes tiny typo-level fixes, the
-coordinator creates `refs/simplepower/scratch/<run-id>/quick-verifier/after`
-after those edits and before the quick-verified implementation checkpoint, then
-inspects or hands off this diff command:
-
-```bash
-git diff refs/simplepower/scratch/<run-id>/quick-verifier/before refs/simplepower/scratch/<run-id>/quick-verifier/after -- <approved-files>
-```
-
-The quick verifier must use the FAST tier by default. With the default
-`SIMPLEPOWER_FAST_MODEL="gpt-5.3-codex-spark-high"`, this resolves to
-`model="gpt-5.3-codex-spark"` and `reasoning_effort="high"`.
-
-The plan must list exact quick verification commands with timeouts, usually:
-- `timeout 30s <lint command>`
-- `timeout 60s <typecheck or build command>`
-- `timeout 120s <focused test command>`
-
-Use commands that fit the repository. If no lint, build, or test command exists,
-state the nearest available command and the reason it is the right quick check.
-
-The quick verifier may fix only tiny typo-level errors discovered while running
-the quick checks. Any behavior change, structural edit, test rewrite, public
-interface change, or unclear issue must be reported to the coordinator instead
-of fixed by the quick verifier. If no file changes happen during quick
-verification, omit the `quick-verifier/after` ref. After the quick-verified
-implementation checkpoint succeeds, delete that run's `quick-verifier` scratch
-refs. If the checkpoint fails or the workflow stops before the checkpoint,
-preserve the refs and report the manual cleanup command.
-
-## Final Review And Fix
-
-After the coordinator checkpoint for the quick-verified implementation, dispatch
-one REVIEW-tier review+fix agent. That agent reviews and fixes the whole
-implementation against the accepted plan, file ownership, approved path
-enforcement, aggregate parallel dispatch semantics, and verification
-requirements.
-
-Before dispatching the review+fix agent, the coordinator creates
-`refs/simplepower/scratch/<run-id>/review-fix/before` for the approved
-implementation file list. If the review+fix agent edits files, the coordinator
-creates `refs/simplepower/scratch/<run-id>/review-fix/after` after those edits
-and before final verification, then inspects or hands off this diff command:
-
-```bash
-git diff refs/simplepower/scratch/<run-id>/review-fix/before refs/simplepower/scratch/<run-id>/review-fix/after -- <approved-files>
-```
-
-The review+fix agent may edit files within the plan's approved file ownership
-when fixing issues it finds. It must report changed files, commands run, results,
-remaining risks, and any unresolved deviations that require user approval. It
-must not commit.
-
-The REVIEW-tier review+fix agent must perform the assigned review and fixes
-directly in the current worker. Do not run Codex CLI. Do not spawn subagents.
-Do not invoke Simple Power skills. Do not restart execution. Do not reroute the
-workflow. If no file changes happen during review+fix, omit the
-`review-fix/after` ref. After the final checkpoint succeeds, delete that run's
-`review-fix` scratch refs. If the checkpoint fails or the workflow stops before
-the checkpoint, preserve the refs and report the manual cleanup command.
-
-## Commit Checkpoints
-
-Every plan must define exactly three future coordinator commit checkpoints:
-
-1. Accepted plan checkpoint: after the user gives combined approval for the
-   reviewed plan, model/task allocation, and immediate current-session
-   execution, and before invoking `simplepower:subagent-driven-development`.
-2. Quick-verified implementation checkpoint: after all `sp-impl` file edits
-   complete and the quick verifier passes.
-3. Final checkpoint: after the REVIEW-tier review+fix agent completes and final
-   verification passes.
-
-Workers, plan reviewers, quick verifiers, and review+fix agents must not commit.
-Do not include worker-owned commits or per-task commits.
-
-Scratch refs are the only allowed temporary review anchors. They are
-coordinator-owned, local-only, and not accepted checkpoint commits. They must be
-deleted after the successful checkpoint for their phase or preserved and
-reported for manual cleanup if the workflow stops or the checkpoint commit
-fails.
-
-## Current-Session Auto-Dispatch
+## Current-Session Execution Handoff
 
 The saved plan is the execution artifact. Do not write a project-local
-implementation JSON artifact.
-
-Normal Simple Power planning proceeds in the current session. Do not run routing
-heuristics or offer alternate execution routes.
-
-After the plan reviewer approves, ask the user for one combined approval that
-covers:
-- The reviewed plan
-- The model/task allocation
-- Immediate current-session execution
-
-If the user requests changes, update the plan, rerun the focused self-review
-checks for the changed categories, create the next `plan-review/after-<n>`
-scratch ref, and send the revised plan back to the same reviewer with the
-concrete scratch-ref `git diff` command when review approval must be refreshed.
-Do not create the accepted plan checkpoint until the user gives combined
+implementation JSON artifact or ask the user to choose another route after plan
 approval.
 
-After combined approval, the coordinator creates the accepted plan checkpoint
-commit, deletes the successful `plan-review` scratch refs, then immediately invokes `simplepower:subagent-driven-development` in the current session with
-this instruction:
+After combined approval and the accepted-plan checkpoint, invoke
+`simplepower:subagent-driven-development` in the current session with a concise
+handoff:
 
 ```text
-Execute `<PLAN_PATH>` with aggregate parallel implementation from the approved Interface Contract. Use the approved FAST/NORMAL/BEST/REVIEW model allocation. Dispatch all non-conflicting `sp-impl` file-edit workers whose coordination needs are satisfied by their Contract inputs, run the quick FAST-tier verifier with lint/build/tests and timeouts after all workers finish, commit the quick-verified implementation, then run one REVIEW-tier review+fix agent, final verification, and final commit.
+Execute <PLAN_PATH> using the approved Implementation Route: <Main agent|Grouped workers>.
+Preserve approved-path enforcement and exact file scope.
+Use direct main-agent implementation for Main agent routes.
+For Grouped workers routes, dispatch only the approved cohesive packages whose write scopes do not overlap, with exact fork_turns="none" and only package-relevant context.
+Run the mandatory FAST quick verifier after implementation edits.
+Return non-trivial quick-verifier failures to the main agent.
+Have the main agent perform final diff review, in-scope fixes, and final verification.
+Use the two coordinator checkpoint conditions in the accepted plan.
 ```
-
-## Verification
-
-List final verification commands with timeouts. Include the exact command, when
-to run it, expected result, and what failure means.
-
-Final verification should include the strongest practical checks for the change,
-usually:
-- `timeout 30s <lint command>`
-- `timeout 60s <typecheck or build command>`
-- `timeout 120s <test command>`
-
-The final verification section must also say that the coordinator performs the
-final checkpoint only after the REVIEW-tier review+fix agent has completed and
-the final commands pass.
-
-Final reporting must include a cleanup check for any remaining scratch refs from
-the run:
-
-```bash
-git for-each-ref --format='%(refname)' "refs/simplepower/scratch/<run-id>"
-```
-
-If the final checkpoint succeeds, no scratch refs for that run should remain
-after phase cleanup. If the workflow stopped because of user direction, a
-blocker, or a failed checkpoint commit, preserve remaining scratch refs and
-report the manual cleanup command from `Scratch Ref Review Anchors`.
 
 ## No Placeholders
 
 Every step must contain the actual content an engineer needs. These are plan
 failures:
-- `TBD`, `TODO`, `implement later`, or `fill in details`
-- Vague instructions such as `add validation` without exact behavior
-- Tests requested without the concrete command or test location
-- References to functions, files, or commands not defined elsewhere in the plan
+
+- `TBD`, `TODO`, `implement later`, or `fill in details`.
+- Vague instructions such as `add validation` without exact behavior.
+- Tests requested without concrete commands, locations, and expected results.
+- References to functions, files, or commands not defined elsewhere in the plan.
 - Worker commit instructions, per-task commit instructions, or task-local
-  `git commit` commands
+  `git commit` commands.
 - Text that pre-authorizes scope reduction, skipped checks, placeholder
-  implementations, docs-only substitutes, execution-route changes, alternate
-  context execution modes, or user selection among execution routes
-- Separate linked local HTML files for plan visuals unless a future approved
-  design explicitly adds them
+  implementations, docs-only substitutes, route changes, alternate execution
+  modes, or user selection among execution routes after approval.
 
 ## Remember
 
-- Exact file paths always
-- Interface Contract before File Ownership
-- `## Visual Aids` is optional; include it only when inline visuals reduce
-  ambiguity, and check present visuals against authoritative written sections
-- Exact ownership before tasks
-- Contract inputs for every implementation task
-- Serialization required defaults to No; Yes needs a concrete reason
-- Aggregate parallel dispatch is expected when write scopes do not overlap and
-  the approved Interface Contract is sufficient
-- Tests may be parallel workers against approved Interface Contract APIs
-- Complete task instructions, with code snippets when code shape matters
-- Concrete commands with `timeout` and expected results
-- FAST/NORMAL/BEST/REVIEW allocation across implementation tasks, review, and
-  verification
-- Model resolution precedence is explicit: user override, quoted assignment in
-  project root AGENTS.md, process environment variable, built-in default
-- The project root AGENTS.md lookup reads only `<repo>/AGENTS.md`; never scan
-  nested AGENTS.md files or use repo-wide grep for model assignments
-- FAST for obvious repetitive work, mechanical edits, static text sweeps, simple
-  fixture/assertion churn, and quick verification
-- NORMAL for routine low-risk localized implementation work
-- BEST for broad, ambiguous, behavior-shaping, high-risk, or hard-to-test work
-- REVIEW-tier plan reviewer
-- Keep the initial plan reviewer open for issue loops; send revised plans back
-  to the same reviewer until approval, unrecoverable interruption, or explicit
-  user direction
-- Coordinator-owned scratch refs may live only under
-  `refs/simplepower/scratch/<run-id>/`; use the
-  `YYYYMMDD-HHMMSS-<short-head>` run id format and record the run id in working
-  notes and final reporting
-- Scratch refs are local review diff anchors, not branches, not accepted
-  checkpoint commits, and not worker or task commits
-- Create `plan-review/before` before first plan review; after coordinator plan
-  edits, create `plan-review/after-<n>` and send the same reviewer a concrete
-  `git diff` command
-- Use the same scratch-ref diff shape for quick-verifier tiny fixes and
-  review+fix edits before the next accepted checkpoint
-- Delete phase scratch refs after the accepted checkpoint for that phase
-  succeeds; preserve refs and report the manual cleanup command on blockers,
-  user stops, or failed checkpoint commits
-- Run the final cleanup check for remaining refs under
-  `refs/simplepower/scratch/<run-id>/`
-- Quick verifier uses the FAST tier by default, resolving to
-  `gpt-5.3-codex-spark-high` when unset
-- One REVIEW-tier review+fix agent
-- No worker commits or per-task commits
-- Exactly three coordinator checkpoints
-- Ask for combined approval of the reviewed plan, model/task allocation, and
-  immediate current-session execution
-- After combined approval, commit the accepted plan checkpoint and immediately
-  invoke `simplepower:subagent-driven-development` with the approved model
-  allocation
+- Route selection happens before user approval.
+- Main agent is the default for one cohesive package without material
+  specialization benefit.
+- Grouped workers require independent non-overlapping packages or specialized
+  work with clear delegation value.
+- Capacity queues packages; it does not split tiny tasks.
+- Compact plans need design summary, route, exact files, steps, risks, timed
+  quick/final verification, and two coordinator checkpoint conditions.
+- Grouped plans add Interface Contract, File Ownership, cohesive Worker
+  Packages, serialization decisions, and FAST/NORMAL/BEST allocation.
+- Main-agent plan self-review replaces active plan-review dispatch.
+- The FAST quick verifier remains mandatory and may make only tiny typo-level
+  fixes.
+- Main-agent final diff review and in-scope fixes replace the final-review
+  agent.
+- Generated plans reference canonical global rules instead of copying global
+  boilerplate.
